@@ -8,9 +8,36 @@ router.get('/', async (req, res) => {
         const pool = await poolPromise
         const result = await pool.request()
             .query('OPEN SYMMETRIC KEY SQLSymmetricKey DECRYPTION BY CERTIFICATE SelfSignedCertificate;\
-                    SELECT Seller.ID, CONVERT (varchar, DecryptByKey(Seller.NIT)) AS NIT, Seller.FullName, Seller.Address, Seller.Phone, Seller.Role, Seller.Active, CommissionType.CommissionValue \
+                    SELECT Seller.ID, CONVERT (varchar, DecryptByKey(Seller.NIT)) AS NIT, Seller.FullName, Seller.Address, Seller.Phone, Seller.Role, Seller.Active, Seller.PenaltyPercentage, CommissionType.CommissionValue \
                     From Seller INNER JOIN Role ON Seller.Role = Role.Name INNER JOIN CommissionType ON Role.CommissionType = CommissionType.Name')
         res.json(result.recordset)
+    } catch (err) {
+        res.status(500)
+        res.send(err.message)
+    }
+});
+
+router.get('/roles', async (req, res) => {
+    try {
+        const pool = await poolPromise
+        const result = await pool.request()
+            .query('SELECT Name From Role')
+        res.json(result.recordset)
+    } catch (err) {
+        res.status(500)
+        res.send(err.message)
+    }
+});
+
+router.get('/:id', async (req, res) => {
+    try {
+        const pool = await poolPromise
+        const result = await pool.request()
+            .input('id', sql.Int, req.params.id)
+            .query('OPEN SYMMETRIC KEY SQLSymmetricKey DECRYPTION BY CERTIFICATE SelfSignedCertificate;\
+            SELECT Seller.ID, CONVERT (varchar, DecryptByKey(Seller.NIT)) AS NIT, Seller.FullName, Seller.Address, Seller.Phone, Seller.Role, Seller.Active, Seller.PenaltyPercentage, CommissionType.CommissionValue \
+            From Seller INNER JOIN Role ON Seller.Role = Role.Name INNER JOIN CommissionType ON Role.CommissionType = CommissionType.Name WHERE Seller.ID = @id')
+        res.json(result.recordset[0])
     } catch (err) {
         res.status(500)
         res.send(err.message)
@@ -21,10 +48,10 @@ router.post('/', async (req, res) => {
     try {
         const pool = await poolPromise
         await pool.request()
-            .input('nit', sql.VarBinary, new Buffer(req.body.nit))
+            .input('nit', sql.VarBinary, new Buffer.from(req.body.nit))
             .input('fullName', sql.VarChar(255), req.body.fullName)
             .input('address', sql.VarChar(255), req.body.address)
-            .input('phone', sql.Int, req.body.phone)
+            .input('phone', sql.BigInt, req.body.phone)
             .input('penaltyPercentage', sql.Float, req.body.penaltyPercentage)
             .input('role', sql.VarChar(50), req.body.role)
             .query('OPEN SYMMETRIC KEY SQLSymmetricKey DECRYPTION BY CERTIFICATE SelfSignedCertificate;\
@@ -42,10 +69,10 @@ router.put('/', async (req, res) => {
         const pool = await poolPromise
         await pool.request()
             .input('id', sql.VarChar(50), req.body.id)
-            .input('nit', sql.VarBinary, new Buffer(req.body.nit))
+            .input('nit', sql.VarBinary, new Buffer.from(req.body.nit))
             .input('fullName', sql.VarChar(255), req.body.fullName)
             .input('address', sql.VarChar(255), req.body.address)
-            .input('phone', sql.Int, req.body.phone)
+            .input('phone', sql.BigInt, req.body.phone)
             .input('role', sql.VarChar(50), req.body.role)
             .query('OPEN SYMMETRIC KEY SQLSymmetricKey DECRYPTION BY CERTIFICATE SelfSignedCertificate;\
                     UPDATE Seller SET NIT = EncryptByKey(Key_GUID(\'SQLSymmetricKey\'), @nit), FullName = @fullName, Address = @address, Phone = @phone, Role = @role WHERE ID = @id')
@@ -70,7 +97,6 @@ router.delete('/', async (req, res) => {
 })
 
 router.put('/active', async (req, res) => {
-    console.log(req.body.active)
     try {
         const pool = await poolPromise
         await pool.request()
@@ -83,5 +109,6 @@ router.put('/active', async (req, res) => {
         res.send(err)
     }
 })
+
 
 module.exports = router;
